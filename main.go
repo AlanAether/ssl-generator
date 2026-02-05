@@ -109,15 +109,19 @@ func requestCertificate(domain string, email string) {
 	var dnsChallenge *acme.Challenge
 	var authURL string
 
-	for _, aURL := range order.AuthzURLs {
-		auth, _ := client.GetAuthorization(ctx, aURL)
-		authURL = aURL
+	for _, chal := range auth.Challenges {
+    if chal.Type == "dns-01" {
+        dnsChallenge = chal
 
-		for _, chal := range auth.Challenges {
-			if chal.Type == "dns-01" {
-				dnsChallenge = chal
-			}
-		}
+        dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
+        fmt.Println("=================================")
+        fmt.Println("UPDATE DNS RECORD IN GODADDY:")
+        fmt.Println("Name: _acme-challenge." + domain)
+        fmt.Println("TXT Value:", dnsValue)
+        fmt.Println("=================================")
+    }
+}
+
 	}
 
 	fmt.Println("Accepting DNS challenge...")
