@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"os"
 
-	"crypto/x509"
-
 	"golang.org/x/crypto/acme"
 )
 
@@ -112,45 +110,16 @@ func requestCertificate(domain string, email string) {
 			if chal.Type == "dns-01" {
 				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
 
-				fmt.Println("ADD THIS DNS RECORD:")
-				fmt.Println("_acme-challenge." + domain)
-				fmt.Println("TXT VALUE:", dnsValue)
-
-				// Store for later verification
-				challenges[chal.Token] = dnsValue
+				fmt.Println("=================================")
+				fmt.Println("ADD THIS DNS RECORD IN GODADDY:")
+				fmt.Println("Name: _acme-challenge." + domain)
+				fmt.Println("TXT Value:", dnsValue)
+				fmt.Println("=================================")
 			}
 		}
 	}
 
-	fmt.Println("Waiting for DNS challenge to be added...")
-}
-
-	fmt.Println("Waiting for authorization...")
-
-	for _, authURL := range order.AuthzURLs {
-		auth, err := client.WaitAuthorization(ctx, authURL)
-		if err != nil {
-			fmt.Println("Authorization failed:", err)
-			return
-		}
-		fmt.Println("Authorization status:", auth.Status)
-	}
-
-	fmt.Println("Authorization valid, creating CSR...")
-
-	csrTemplate := &x509.CertificateRequest{
-		DNSNames: []string{domain},
-	}
-
-	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
-
-	certChain, _, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
-
-	fmt.Println("Certificate issued!")
-
-	for _, cert := range certChain {
-		fmt.Println(string(cert))
-	}
+	fmt.Println("Waiting for DNS record to be added before validation...")
 }
 
 func main() {
