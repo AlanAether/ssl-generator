@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/afosto/yaac"
+	"golang.org/x/crypto/acme"
 )
 
 var challenges = make(map[string]string)
@@ -81,37 +81,36 @@ func setChallengeHandler(w http.ResponseWriter, r *http.Request) {
 func requestCertificate(domain string, email string) {
 	ctx := context.Background()
 
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 
-	client, _ := yaac.NewClient(
-		"https://acme-staging-v02.api.letsencrypt.org/directory",
-		yaac.WithKey(key),
-		yaac.WithUserAgent("ssl-generator"),
-	)
+	client := &acme.Client{
+		Key:          privateKey,
+		DirectoryURL: acme.LetsEncryptStagingURL,
+	}
 
-	acc, _ := client.NewAccount(ctx, yaac.AccountOptions{
-		Contact:              []string{"mailto:" + email},
-		TermsOfServiceAgreed: true,
-	})
+	account := &acme.Account{
+		Contact: []string{"mailto:" + email},
+	}
 
-	_ = acc
+	client.Register(ctx, account, acme.AcceptTOS)
 
-	order, _ := client.NewOrder(ctx, []string{domain})
+	order, _ := client.AuthorizeOrder(ctx, []string{domain})
 
-	for _, authURL := range order.Authorizations {
+	for _, authURL := range order.AuthzURLs {
 		auth, _ := client.GetAuthorization(ctx, authURL)
+
 		for _, chal := range auth.Challenges {
 			if chal.Type == "http-01" {
-				challenges[chal.Token] = chal.KeyAuthorization
-				client.AcceptChallenge(ctx, chal.URL)
+				resp, _ := client.HTTP01ChallengeResponse(chal.Token)
+				challenges[chal.Token] = resp
+				client.Accept(ctx, chal)
 			}
 		}
 	}
 
-	client.WaitForOrder(ctx, order)
+	client.WaitAuthorization(ctx, order.AuthzURLs[0])
 
-	cert, _ := client.GetCertificate(ctx, order.CertificateURL)
-	fmt.Println(string(cert))
+	fmt.Println("Challenge accepted for", domain)
 }
 
 func main() {

@@ -1,2 +1,2 @@
-github.com/afosto/yaac v1.5.3 h1:rEXEFCYWcJetF+6ArVy3NS0godcQ+N0NKOpT8vEtWMg=
-github.com/afosto/yaac v1.5.3/go.mod h1:y8xAmXF424RIFAZHGqdqafz42/XFlEBJ0JJAD69tQCI=
+golang.org/x/crypto v0.47.0 h1:V6e3FRj+n4dbpw86FJ8Fv7XVOql7TEwpHapKoMJ/GO8=
+golang.org/x/crypto v0.47.0/go.mod h1:ff3Y9VzzKbwSSEzWqJsJVBnWmRwRSHt/6Op5n9bQc4A=
