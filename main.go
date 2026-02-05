@@ -85,7 +85,7 @@ func requestCertificate(domain string, email string) {
 
 	client := &acme.Client{
 		Key:          privateKey,
-		DirectoryURL: acme.LetsEncryptStagingURL,
+		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
 	}
 
 	account := &acme.Account{
@@ -94,7 +94,9 @@ func requestCertificate(domain string, email string) {
 
 	client.Register(ctx, account, acme.AcceptTOS)
 
-	order, _ := client.AuthorizeOrder(ctx, []string{domain})
+	order, _ := client.AuthorizeOrder(ctx, []acme.AuthzID{
+		{Type: "dns", Value: domain},
+	})
 
 	for _, authURL := range order.AuthzURLs {
 		auth, _ := client.GetAuthorization(ctx, authURL)
@@ -108,9 +110,7 @@ func requestCertificate(domain string, email string) {
 		}
 	}
 
-	client.WaitAuthorization(ctx, order.AuthzURLs[0])
-
-	fmt.Println("Challenge accepted for", domain)
+	fmt.Println("Challenge flow started for", domain)
 }
 
 func main() {
