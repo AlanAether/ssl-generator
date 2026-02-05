@@ -142,20 +142,20 @@ func prepareDNSChallenge(domain, email string) (string, string, error) {
 }
 
 func completeIssuance() {
-	time.Sleep(5 * time.Second) // allow DNS to settle slightly
+	time.Sleep(5 * time.Second)
 
 	mu.Lock()
 	order := pendingOrder
 	chal := pendingChallenge
 	authURL := pendingAuthURL
-	key := pendingKey
+	accountKey := pendingKey
 	domain := pendingDomain
 	mu.Unlock()
 
 	ctx := context.Background()
 
 	client := &acme.Client{
-		Key:          key,
+		Key:          accountKey,
 		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
 	}
 
@@ -168,9 +168,16 @@ func completeIssuance() {
 		return
 	}
 
+	fmt.Println("Authorization valid. Generating certificate key...")
+
+	// 🔑 NEW KEY FOR CERTIFICATE
+	certKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+
 	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
 		DNSNames: []string{domain},
-	}, key)
+	}, certKey)
+
+	fmt.Println("Finalizing order...")
 
 	certChain, _, err := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
 	if err != nil {
@@ -178,10 +185,13 @@ func completeIssuance() {
 		return
 	}
 
+	fmt.Println("Saving certificate files...")
+
 	os.MkdirAll("certs/"+domain, 0700)
+
 	os.WriteFile("certs/"+domain+"/cert.pem", certChain[0], 0600)
 
-	keyBytes := x509.MarshalPKCS1PrivateKey(key)
+	keyBytes := x509.MarshalPKCS1PrivateKey(certKey)
 	os.WriteFile("certs/"+domain+"/private-key.pem",
 		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyBytes}), 0600)
 
