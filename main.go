@@ -105,20 +105,25 @@ func requestCertificate(domain string, email string) {
 		{Type: "dns", Value: domain},
 	})
 
-	for _, chal := range auth.Challenges {
-    if chal.Type == "dns-01" {
-        dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
+	for _, authURL := range order.AuthzURLs {
+		auth, _ := client.GetAuthorization(ctx, authURL)
 
-        fmt.Println("ADD THIS DNS RECORD:")
-        fmt.Println("_acme-challenge." + domain)
-        fmt.Println("TXT VALUE:", dnsValue)
+		for _, chal := range auth.Challenges {
+			if chal.Type == "dns-01" {
+				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
 
-        // Do NOT accept yet — wait for DNS to be added
-        challenges[chal.Token] = dnsValue
-    }
-}
+				fmt.Println("ADD THIS DNS RECORD:")
+				fmt.Println("_acme-challenge." + domain)
+				fmt.Println("TXT VALUE:", dnsValue)
 
+				// Store for later verification
+				challenges[chal.Token] = dnsValue
+			}
+		}
 	}
+
+	fmt.Println("Waiting for DNS challenge to be added...")
+}
 
 	fmt.Println("Waiting for authorization...")
 
