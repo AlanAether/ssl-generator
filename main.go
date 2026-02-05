@@ -235,8 +235,6 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.Dir("static")))
 
-	http.HandleFunc("/generate", generateHandler)
-	http.HandleFunc("/finalize", finalizeHandler)
 	http.HandleFunc("/download-cert", downloadCert)
 	http.HandleFunc("/download-key", downloadKey)
 	http.HandleFunc("/health", healthHandler)
