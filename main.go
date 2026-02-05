@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 
+	"crypto/x509"
+
 	"golang.org/x/crypto/acme"
 )
 
@@ -115,7 +117,25 @@ func requestCertificate(domain string, email string) {
 		}
 	}
 
-	fmt.Println("Challenge flow started for", domain)
+	fmt.Println("Waiting for authorization...")
+
+	client.WaitAuthorization(ctx, order.AuthzURLs[0])
+
+	fmt.Println("Authorization valid, creating CSR...")
+
+	csrTemplate := &x509.CertificateRequest{
+		DNSNames: []string{domain},
+	}
+
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
+
+	finalOrder, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
+
+	fmt.Println("Certificate issued!")
+
+	for _, cert := range finalOrder {
+		fmt.Println(string(cert))
+	}
 }
 
 func main() {
