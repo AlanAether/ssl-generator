@@ -81,11 +81,15 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) {
 
 func downloadCert(w http.ResponseWriter, r *http.Request) {
 	domain := r.URL.Query().Get("domain")
+	w.Header().Set("Content-Disposition", "attachment; filename=cert.pem")
+	w.Header().Set("Content-Type", "application/x-pem-file")
 	http.ServeFile(w, r, "certs/"+domain+"/cert.pem")
 }
 
 func downloadKey(w http.ResponseWriter, r *http.Request) {
 	domain := r.URL.Query().Get("domain")
+	w.Header().Set("Content-Disposition", "attachment; filename=private-key.pem")
+	w.Header().Set("Content-Type", "application/x-pem-file")
 	http.ServeFile(w, r, "certs/"+domain+"/private-key.pem")
 }
 
@@ -189,7 +193,12 @@ func completeIssuance() {
 
 	os.MkdirAll("certs/"+domain, 0700)
 
-	os.WriteFile("certs/"+domain+"/cert.pem", certChain[0], 0600)
+	certOut, _ := os.Create("certs/" + domain + "/cert.pem")
+	pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certChain[0],
+	})
+	certOut.Close()
 
 	keyBytes := x509.MarshalPKCS1PrivateKey(certKey)
 	os.WriteFile("certs/"+domain+"/private-key.pem",
