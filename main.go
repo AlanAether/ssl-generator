@@ -233,7 +233,9 @@ func main() {
 	   ROUTES
 	   ======================= */
 
-	http.Handle("/", http.FileServer(http.Dir("static")))
+	http.Handle("/", basicAuth(func(w http.ResponseWriter, r *http.Request) {
+		http.FileServer(http.Dir("static")).ServeHTTP(w, r)
+	}))
 
 	http.HandleFunc("/download-cert", downloadCert)
 	http.HandleFunc("/download-key", downloadKey)
