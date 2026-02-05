@@ -41,7 +41,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go requestCertificate(req.Domain, req.Email)
+	requestCertificate(req.Domain, req.Email)
 
 	response := GenerateResponse{
 		Status:   "pending_dns",
