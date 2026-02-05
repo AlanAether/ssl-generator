@@ -50,6 +50,8 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Received domain:", req.Domain)
 	fmt.Println("Received email:", req.Email)
 
+	go requestCertificate(req.Domain, req.Email)
+
 	response := GenerateResponse{
 		Status:  "processing",
 		Message: "Certificate request started for " + req.Domain,
