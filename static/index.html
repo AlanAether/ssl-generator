@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSL Certificate Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="card">
+        <h1>SSL Certificate Generator</h1>
+
+        <input id="domain" placeholder="example.com">
+        <input id="email" placeholder="email@example.com">
+
+        <button onclick="generate()">Generate Certificate</button>
+        <button onclick="finalize()">Finalize After DNS</button>
+
+        <pre id="output"></pre>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
