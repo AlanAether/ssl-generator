@@ -114,6 +114,7 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) {
 	auth, err := client.WaitAuthorization(ctx, pendingAuthURL)
 	if err != nil {
 		fmt.Println("Authorization failed:", err)
+		http.Error(w, "Authorization failed: "+err.Error(), 500)
 		return
 	}
 	fmt.Println("Authorization status:", auth.Status)
@@ -141,6 +142,9 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) {
 	}), 0600)
 
 	fmt.Println("🎉 CERTIFICATE SAVED 🎉")
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("Certificate issued and saved successfully!"))
 }
 
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
