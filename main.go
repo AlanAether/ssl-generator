@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -105,23 +106,44 @@ func requestCertificate(domain string, email string) {
 		{Type: "dns", Value: domain},
 	})
 
-	for _, authURL := range order.AuthzURLs {
-		auth, _ := client.GetAuthorization(ctx, authURL)
+	var dnsChallenge *acme.Challenge
+	var authURL string
+
+	for _, aURL := range order.AuthzURLs {
+		auth, _ := client.GetAuthorization(ctx, aURL)
+		authURL = aURL
 
 		for _, chal := range auth.Challenges {
 			if chal.Type == "dns-01" {
-				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
-
-				fmt.Println("=================================")
-				fmt.Println("ADD THIS DNS RECORD IN GODADDY:")
-				fmt.Println("Name: _acme-challenge." + domain)
-				fmt.Println("TXT Value:", dnsValue)
-				fmt.Println("=================================")
+				dnsChallenge = chal
 			}
 		}
 	}
 
-	fmt.Println("Waiting for DNS record to be added before validation...")
+	fmt.Println("Accepting DNS challenge...")
+	client.Accept(ctx, dnsChallenge)
+
+	fmt.Println("Waiting for authorization...")
+	auth, err := client.WaitAuthorization(ctx, authURL)
+	if err != nil {
+		fmt.Println("Authorization failed:", err)
+		return
+	}
+	fmt.Println("Authorization status:", auth.Status)
+
+	fmt.Println("Creating CSR...")
+	csrTemplate := &x509.CertificateRequest{
+		DNSNames: []string{domain},
+	}
+
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
+
+	certChain, _, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
+
+	fmt.Println("🎉 CERTIFICATE ISSUED 🎉")
+	for _, cert := range certChain {
+		fmt.Println(string(cert))
+	}
 }
 
 func main() {
