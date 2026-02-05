@@ -36,14 +36,19 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Method:", r.Method)
+	fmt.Println("Content-Type:", r.Header.Get("Content-Type"))
+
 	var req GenerateRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		fmt.Println("Decode error:", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	go requestCertificate(req.Domain, req.Email)
+	fmt.Println("Received domain:", req.Domain)
+	fmt.Println("Received email:", req.Email)
 
 	response := GenerateResponse{
 		Status:  "processing",
