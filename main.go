@@ -129,11 +129,11 @@ func requestCertificate(domain string, email string) {
 
 	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
 
-	finalOrder, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
+	certChain, _, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
 
 	fmt.Println("Certificate issued!")
 
-	for _, cert := range finalOrder {
+	for _, cert := range certChain {
 		fmt.Println(string(cert))
 	}
 }
