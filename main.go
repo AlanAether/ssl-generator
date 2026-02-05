@@ -119,7 +119,14 @@ func requestCertificate(domain string, email string) {
 
 	fmt.Println("Waiting for authorization...")
 
-	client.WaitAuthorization(ctx, order.AuthzURLs[0])
+	for _, authURL := range order.AuthzURLs {
+		auth, err := client.WaitAuthorization(ctx, authURL)
+		if err != nil {
+			fmt.Println("Authorization failed:", err)
+			return
+		}
+		fmt.Println("Authorization status:", auth.Status)
+	}
 
 	fmt.Println("Authorization valid, creating CSR...")
 
