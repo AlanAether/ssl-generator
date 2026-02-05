@@ -15,6 +15,12 @@ import (
 
 var challenges = make(map[string]string)
 
+var pendingOrder *acme.Order
+var pendingChallenge *acme.Challenge
+var pendingAuthURL string
+var pendingKey *rsa.PrivateKey
+var pendingDomain string
+
 type GenerateRequest struct {
 	Domain string `json:"domain"`
 	Email  string `json:"email"`
@@ -106,21 +112,23 @@ func requestCertificate(domain string, email string) {
 		{Type: "dns", Value: domain},
 	})
 
-	var dnsChallenge *acme.Challenge
-	var authURL string
-
-	// Fetch authorization objects
 	for _, aURL := range order.AuthzURLs {
-		authURL = aURL
 		auth, _ := client.GetAuthorization(ctx, aURL)
 
 		for _, chal := range auth.Challenges {
 			if chal.Type == "dns-01" {
-				dnsChallenge = chal
+
+				// STORE for later finalize step
+				pendingOrder = order
+				pendingChallenge = chal
+				pendingAuthURL = aURL
+				pendingKey = privateKey
+				pendingDomain = domain
 
 				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
+
 				fmt.Println("=================================")
-				fmt.Println("UPDATE DNS RECORD IN GODADDY:")
+				fmt.Println("ADD THIS DNS RECORD IN GODADDY:")
 				fmt.Println("Name: _acme-challenge." + domain)
 				fmt.Println("TXT Value:", dnsValue)
 				fmt.Println("=================================")
@@ -128,30 +136,7 @@ func requestCertificate(domain string, email string) {
 		}
 	}
 
-	fmt.Println("Accepting DNS challenge...")
-	client.Accept(ctx, dnsChallenge)
-
-	fmt.Println("Waiting for authorization...")
-	auth, err := client.WaitAuthorization(ctx, authURL)
-	if err != nil {
-		fmt.Println("Authorization failed:", err)
-		return
-	}
-	fmt.Println("Authorization status:", auth.Status)
-
-	fmt.Println("Creating CSR...")
-	csrTemplate := &x509.CertificateRequest{
-		DNSNames: []string{domain},
-	}
-
-	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
-
-	certChain, _, _ := client.CreateOrderCert(ctx, order.FinalizeURL, csrDER, true)
-
-	fmt.Println("🎉 CERTIFICATE ISSUED 🎉")
-	for _, cert := range certChain {
-		fmt.Println(string(cert))
-	}
+	fmt.Println("DNS challenge prepared. Now add TXT record, then call /finalize")
 }
 
 func main() {
@@ -165,7 +150,40 @@ func main() {
 	http.HandleFunc("/generate", generateHandler)
 	http.HandleFunc("/.well-known/acme-challenge/", challengeHandler)
 	http.HandleFunc("/set-challenge", setChallengeHandler)
+	http.HandleFunc("/finalize", finalizeHandler)
 
 	fmt.Println("Server running on port", port)
 	http.ListenAndServe(":"+port, nil)
+}
+
+func finalizeHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	fmt.Println("Accepting DNS challenge...")
+	client := &acme.Client{
+		Key:          pendingKey,
+		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+	}
+
+	client.Accept(ctx, pendingChallenge)
+
+	fmt.Println("Waiting for authorization...")
+	auth, err := client.WaitAuthorization(ctx, pendingAuthURL)
+	if err != nil {
+		fmt.Println("Authorization failed:", err)
+		return
+	}
+	fmt.Println("Authorization status:", auth.Status)
+
+	csrTemplate := &x509.CertificateRequest{
+		DNSNames: []string{pendingDomain},
+	}
+
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, pendingKey)
+	certChain, _, _ := client.CreateOrderCert(ctx, pendingOrder.FinalizeURL, csrDER, true)
+
+	fmt.Println("🎉 CERTIFICATE ISSUED 🎉")
+	for _, cert := range certChain {
+		fmt.Println(string(cert))
+	}
 }
