@@ -9,11 +9,9 @@ async function generate() {
     })
 
     const data = await res.json()
-    document.getElementById("output").innerText = data.message + "\nCheck logs for DNS TXT value"
-}
 
-async function finalize() {
-    const res = await fetch("/finalize")
-    const text = await res.text()
-    document.getElementById("output").innerText = "Finalize triggered. Check logs for certificate."
+    document.getElementById("output").innerText =
+        data.message +
+        "\n\nDNS Name: " + data.dns_name +
+        "\nTXT Value: " + data.dns_value
 }

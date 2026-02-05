@@ -19,6 +19,7 @@ var pendingChallenge *acme.Challenge
 var pendingAuthURL string
 var pendingKey *rsa.PrivateKey
 var pendingDomain string
+var pendingDNSValue string
 
 type GenerateRequest struct {
 	Domain string `json:"domain"`
@@ -26,8 +27,10 @@ type GenerateRequest struct {
 }
 
 type GenerateResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
+	Status   string `json:"status"`
+	Message  string `json:"message"`
+	DNSName  string `json:"dns_name"`
+	DNSValue string `json:"dns_value"`
 }
 
 func generateHandler(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +44,10 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	go requestCertificate(req.Domain, req.Email)
 
 	response := GenerateResponse{
-		Status:  "processing",
-		Message: "DNS challenge prepared. Add TXT record, then click Finalize.",
+		Status:   "pending_dns",
+		Message:  "Add this TXT record in DNS, then click Finalize",
+		DNSName:  "_acme-challenge." + req.Domain,
+		DNSValue: pendingDNSValue,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -80,6 +85,7 @@ func requestCertificate(domain string, email string) {
 				pendingDomain = domain
 
 				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
+				pendingDNSValue = dnsValue
 
 				fmt.Println("=================================")
 				fmt.Println("ADD THIS DNS RECORD:")
