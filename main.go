@@ -207,6 +207,18 @@ func completeIssuance() {
 	fmt.Println("🎉 CERTIFICATE GENERATED SUCCESSFULLY 🎉")
 }
 
+func basicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "yourpassword" {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
 /* =======================
    MAIN
    ======================= */
@@ -217,6 +229,10 @@ func main() {
 		port = "8080"
 	}
 
+	/* =======================
+	   ROUTES
+	   ======================= */
+
 	http.Handle("/", http.FileServer(http.Dir("static")))
 
 	http.HandleFunc("/generate", generateHandler)
@@ -224,6 +240,8 @@ func main() {
 	http.HandleFunc("/download-cert", downloadCert)
 	http.HandleFunc("/download-key", downloadKey)
 	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/generate", basicAuth(generateHandler))
+	http.HandleFunc("/finalize", basicAuth(finalizeHandler))
 
 	fmt.Println("Server running on port", port)
 	http.ListenAndServe(":"+port, nil)
