@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+var challenges = make(map[string]string)
+
 type GenerateRequest struct {
 	Domain string `json:"domain"`
 	Email  string `json:"email"`
@@ -45,6 +47,30 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func challengeHandler(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Path[len("/.well-known/acme-challenge/"):]
+	value, exists := challenges[token]
+
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	fmt.Fprint(w, value)
+}
+
+func setChallengeHandler(w http.ResponseWriter, r *http.Request) {
+	var data map[string]string
+	json.NewDecoder(r.Body).Decode(&data)
+
+	token := data["token"]
+	value := data["value"]
+
+	challenges[token] = value
+
+	w.Write([]byte("Challenge stored"))
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -54,6 +80,8 @@ func main() {
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/generate", generateHandler)
+	http.HandleFunc("/.well-known/acme-challenge/", challengeHandler)
+	http.HandleFunc("/set-challenge", setChallengeHandler)
 
 	fmt.Println("Server running on port", port)
 	http.ListenAndServe(":"+port, nil)
