@@ -20,6 +20,9 @@ async function finalize() {
     const res = await fetch("/finalize")
     const text = await res.text()
 
-    console.log("Finalize response:", text)
-    document.getElementById("output").innerText = text
+    document.getElementById("output").innerHTML =
+        text +
+        "<br><br><a href='/download-cert?domain=" + document.getElementById("domain").value + "'>Download Certificate</a>" +
+        "<br><a href='/download-key?domain=" + document.getElementById("domain").value + "'>Download Private Key</a>"
 }
+

@@ -156,6 +156,55 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func completeIssuance() {
+	ctx := context.Background()
+
+	client := &acme.Client{
+		Key:          pendingKey,
+		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
+	}
+
+	fmt.Println("Accepting DNS challenge...")
+	client.Accept(ctx, pendingChallenge)
+
+	fmt.Println("Waiting for authorization...")
+	auth, err := client.WaitAuthorization(ctx, pendingAuthURL)
+	if err != nil {
+		fmt.Println("Authorization failed:", err)
+		return
+	}
+	fmt.Println("Authorization status:", auth.Status)
+
+	fmt.Println("Creating CSR...")
+	csrTemplate := &x509.CertificateRequest{
+		DNSNames: []string{pendingDomain},
+	}
+
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, pendingKey)
+
+	certChain, _, _ := client.CreateOrderCert(ctx, pendingOrder.FinalizeURL, csrDER, true)
+
+	os.MkdirAll("certs/"+pendingDomain, 0700)
+
+	os.WriteFile("certs/"+pendingDomain+"/cert.pem", certChain[0], 0600)
+
+	keyBytes := x509.MarshalPKCS1PrivateKey(pendingKey)
+	os.WriteFile("certs/"+pendingDomain+"/private-key.pem",
+		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyBytes}), 0600)
+
+	fmt.Println("🎉 CERTIFICATE AND KEY SAVED 🎉")
+}
+
+func downloadCert(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	http.ServeFile(w, r, "certs/"+domain+"/cert.pem")
+}
+
+func downloadKey(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	http.ServeFile(w, r, "certs/"+domain+"/private-key.pem")
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
