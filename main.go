@@ -6,14 +6,13 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"os"
 
 	"golang.org/x/crypto/acme"
 )
-
-var challenges = make(map[string]string)
 
 var pendingOrder *acme.Order
 var pendingChallenge *acme.Challenge
@@ -31,65 +30,23 @@ type GenerateResponse struct {
 	Message string `json:"message"`
 }
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "SSL Generator Backend Running 🚀")
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
-	})
-}
-
 func generateHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Method:", r.Method)
-	fmt.Println("Content-Type:", r.Header.Get("Content-Type"))
-
 	var req GenerateRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		fmt.Println("Decode error:", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-
-	fmt.Println("Received domain:", req.Domain)
-	fmt.Println("Received email:", req.Email)
 
 	go requestCertificate(req.Domain, req.Email)
 
 	response := GenerateResponse{
 		Status:  "processing",
-		Message: "Certificate request started for " + req.Domain,
+		Message: "DNS challenge prepared. Add TXT record, then click Finalize.",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-}
-
-func challengeHandler(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Path[len("/.well-known/acme-challenge/"):]
-	value, exists := challenges[token]
-
-	if !exists {
-		http.NotFound(w, r)
-		return
-	}
-
-	fmt.Fprint(w, value)
-}
-
-func setChallengeHandler(w http.ResponseWriter, r *http.Request) {
-	var data map[string]string
-	json.NewDecoder(r.Body).Decode(&data)
-
-	token := data["token"]
-	value := data["value"]
-
-	challenges[token] = value
-
-	w.Write([]byte("Challenge stored"))
 }
 
 func requestCertificate(domain string, email string) {
@@ -98,14 +55,12 @@ func requestCertificate(domain string, email string) {
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 
 	client := &acme.Client{
-		Key:          privateKey,
-		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+		Key: privateKey,
+		// 🔴 CHANGE TO PRODUCTION WHEN READY
+		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
 	}
 
-	account := &acme.Account{
-		Contact: []string{"mailto:" + email},
-	}
-
+	account := &acme.Account{Contact: []string{"mailto:" + email}}
 	client.Register(ctx, account, acme.AcceptTOS)
 
 	order, _ := client.AuthorizeOrder(ctx, []acme.AuthzID{
@@ -118,7 +73,6 @@ func requestCertificate(domain string, email string) {
 		for _, chal := range auth.Challenges {
 			if chal.Type == "dns-01" {
 
-				// STORE for later finalize step
 				pendingOrder = order
 				pendingChallenge = chal
 				pendingAuthURL = aURL
@@ -128,7 +82,7 @@ func requestCertificate(domain string, email string) {
 				dnsValue, _ := client.DNS01ChallengeRecord(chal.Token)
 
 				fmt.Println("=================================")
-				fmt.Println("ADD THIS DNS RECORD IN GODADDY:")
+				fmt.Println("ADD THIS DNS RECORD:")
 				fmt.Println("Name: _acme-challenge." + domain)
 				fmt.Println("TXT Value:", dnsValue)
 				fmt.Println("=================================")
@@ -136,35 +90,18 @@ func requestCertificate(domain string, email string) {
 		}
 	}
 
-	fmt.Println("DNS challenge prepared. Now add TXT record, then call /finalize")
-}
-
-func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/generate", generateHandler)
-	http.HandleFunc("/.well-known/acme-challenge/", challengeHandler)
-	http.HandleFunc("/set-challenge", setChallengeHandler)
-	http.HandleFunc("/finalize", finalizeHandler)
-
-	fmt.Println("Server running on port", port)
-	http.ListenAndServe(":"+port, nil)
+	fmt.Println("DNS challenge prepared.")
 }
 
 func finalizeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	fmt.Println("Accepting DNS challenge...")
 	client := &acme.Client{
 		Key:          pendingKey,
-		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
 	}
 
+	fmt.Println("Accepting DNS challenge...")
 	client.Accept(ctx, pendingChallenge)
 
 	fmt.Println("Waiting for authorization...")
@@ -175,15 +112,55 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println("Authorization status:", auth.Status)
 
+	fmt.Println("Creating CSR...")
 	csrTemplate := &x509.CertificateRequest{
 		DNSNames: []string{pendingDomain},
 	}
 
 	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, csrTemplate, pendingKey)
+
 	certChain, _, _ := client.CreateOrderCert(ctx, pendingOrder.FinalizeURL, csrDER, true)
 
-	fmt.Println("🎉 CERTIFICATE ISSUED 🎉")
-	for _, cert := range certChain {
-		fmt.Println(string(cert))
+	os.MkdirAll("certs/"+pendingDomain, 0700)
+
+	certFile := "certs/" + pendingDomain + "/cert.pem"
+	keyFile := "certs/" + pendingDomain + "/key.pem"
+
+	os.WriteFile(certFile, certChain[0], 0600)
+
+	keyBytes := x509.MarshalPKCS1PrivateKey(pendingKey)
+	os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyBytes,
+	}), 0600)
+
+	fmt.Println("🎉 CERTIFICATE SAVED 🎉")
+}
+
+func downloadHandler(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	http.ServeFile(w, r, "certs/"+domain+"/cert.pem")
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+
+	// Serve UI
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+
+	http.HandleFunc("/generate", generateHandler)
+	http.HandleFunc("/finalize", finalizeHandler)
+	http.HandleFunc("/download", downloadHandler)
+	http.HandleFunc("/health", healthHandler)
+
+	fmt.Println("Server running on port", port)
+	http.ListenAndServe(":"+port, nil)
 }
