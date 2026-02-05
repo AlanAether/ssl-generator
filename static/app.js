@@ -15,3 +15,11 @@ async function generate() {
         "\n\nDNS Name: " + data.dns_name +
         "\nTXT Value: " + data.dns_value
 }
+
+async function finalize() {
+    const res = await fetch("/finalize")
+    const text = await res.text()
+
+    console.log("Finalize response:", text)
+    document.getElementById("output").innerText = text
+}
