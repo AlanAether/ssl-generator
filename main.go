@@ -112,7 +112,7 @@ func prepareDNSChallenge(domain, email string) (string, string, error) {
 
 	client := &acme.Client{
 		Key:          key,
-		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
+		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
 	}
 
 	client.Register(ctx, &acme.Account{
@@ -164,7 +164,7 @@ func completeIssuance() {
 
 	client := &acme.Client{
 		Key:          accountKey,
-		DirectoryURL: "https://acme-v02.api.letsencrypt.org/directory",
+		DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
 	}
 
 	fmt.Println("Accepting DNS challenge...")
