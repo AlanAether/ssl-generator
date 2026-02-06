@@ -256,16 +256,17 @@ func main() {
 	   ROUTES
 	   ======================= */
 
-	http.Handle("/", basicAuth(func(w http.ResponseWriter, r *http.Request) {
-		http.FileServer(http.Dir("static")).ServeHTTP(w, r)
-	}))
+	// Public UI
+	http.Handle("/", http.FileServer(http.Dir("static")))
 
-	http.HandleFunc("/download-cert", downloadCert)
-	http.HandleFunc("/download-key", downloadKey)
-	http.HandleFunc("/health", healthHandler)
+	// Protected API
 	http.HandleFunc("/generate", basicAuth(generateHandler))
 	http.HandleFunc("/finalize", basicAuth(finalizeHandler))
+	http.HandleFunc("/download-cert", basicAuth(downloadCert))
+	http.HandleFunc("/download-key", basicAuth(downloadKey))
 	http.HandleFunc("/download-bundle", basicAuth(downloadBundle))
+
+	http.HandleFunc("/health", healthHandler)
 
 	fmt.Println("Server running on port", port)
 	http.ListenAndServe(":"+port, nil)
