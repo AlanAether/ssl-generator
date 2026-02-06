@@ -53,12 +53,16 @@ type GenerateResponse struct {
 func generateHandler(w http.ResponseWriter, r *http.Request) {
 	var req GenerateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Println("JSON decode error:", err)
 		http.Error(w, "Invalid request", 400)
 		return
 	}
 
+	fmt.Println("Starting DNS challenge for:", req.Domain)
+
 	dnsName, dnsValue, err := prepareDNSChallenge(req.Domain, req.Email)
 	if err != nil {
+		fmt.Println("ACME ERROR:", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -189,6 +193,11 @@ func completeIssuance() {
 		return
 	}
 
+	if order == nil {
+		fmt.Println("No pending order")
+		return
+	}
+
 	fmt.Println("Saving certificate files...")
 
 	os.MkdirAll("certs/"+domain, 0700)
@@ -242,6 +251,27 @@ func downloadBundle(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "certs/"+domain+"/cabundle.pem")
 }
 
+/*
+=======================
+
+	HTTPS handling
+	=======================
+*/
+func allowCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 /* =======================
    MAIN
    ======================= */
@@ -260,11 +290,11 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir("static")))
 
 	// Protected API
-	http.HandleFunc("/generate", basicAuth(generateHandler))
-	http.HandleFunc("/finalize", basicAuth(finalizeHandler))
-	http.HandleFunc("/download-cert", basicAuth(downloadCert))
-	http.HandleFunc("/download-key", basicAuth(downloadKey))
-	http.HandleFunc("/download-bundle", basicAuth(downloadBundle))
+	http.HandleFunc("/generate", allowCORS(basicAuth(generateHandler)))
+	http.HandleFunc("/finalize", allowCORS(basicAuth(finalizeHandler)))
+	http.HandleFunc("/download-cert", allowCORS(basicAuth(downloadCert)))
+	http.HandleFunc("/download-key", allowCORS(basicAuth(downloadKey)))
+	http.HandleFunc("/download-bundle", allowCORS(basicAuth(downloadBundle)))
 
 	http.HandleFunc("/health", healthHandler)
 
