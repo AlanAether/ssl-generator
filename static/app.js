@@ -23,6 +23,8 @@ async function finalize() {
     document.getElementById("output").innerHTML =
         text +
         "<br><br><a href='/download-cert?domain=" + document.getElementById("domain").value + "'>Download Certificate</a>" +
-        "<br><a href='/download-key?domain=" + document.getElementById("domain").value + "'>Download Private Key</a>"
+        "<br><a href='/download-key?domain=" + document.getElementById("domain").value + "'>Download Private Key</a>" + 
+        "<br><a href='/download-bundle?domain=" + domain + "'>Download CA Bundle</a>"
+
 }
 

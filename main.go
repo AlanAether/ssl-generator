@@ -191,20 +191,31 @@ func completeIssuance() {
 
 	fmt.Println("Saving certificate files...")
 
-	os.MkdirAll("certs/"+domain, 0700)
+os.MkdirAll("certs/"+domain, 0700)
 
-	certOut, _ := os.Create("certs/" + domain + "/cert.pem")
-	pem.Encode(certOut, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certChain[0],
-	})
-	certOut.Close()
+// Save domain certificate
+certOut, _ := os.Create("certs/" + domain + "/cert.pem")
+pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: certChain[0]})
+certOut.Close()
 
-	keyBytes := x509.MarshalPKCS1PrivateKey(certKey)
-	os.WriteFile("certs/"+domain+"/private-key.pem",
-		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyBytes}), 0600)
+// Save CA bundle (intermediate)
+caOut, _ := os.Create("certs/" + domain + "/cabundle.pem")
+pem.Encode(caOut, &pem.Block{Type: "CERTIFICATE", Bytes: certChain[1]})
+caOut.Close()
 
-	fmt.Println("🎉 CERTIFICATE GENERATED SUCCESSFULLY 🎉")
+// Save full chain
+fullOut, _ := os.Create("certs/" + domain + "/fullchain.pem")
+pem.Encode(fullOut, &pem.Block{Type: "CERTIFICATE", Bytes: certChain[0]})
+pem.Encode(fullOut, &pem.Block{Type: "CERTIFICATE", Bytes: certChain[1]})
+fullOut.Close()
+
+// Save private key
+keyBytes := x509.MarshalPKCS1PrivateKey(certKey)
+os.WriteFile("certs/"+domain+"/private-key.pem",
+pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyBytes}), 0600)
+
+fmt.Println("🎉 CERTIFICATE + CA BUNDLE GENERATED 🎉")
+
 }
 
 func basicAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -218,6 +229,14 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+
+/* =======================
+   Download Bundle
+   ======================= */
+func downloadBundle(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	w.Header().Set("Content-Disposition", "attachment; filename=cabundle.pem")
+	http.ServeFile(w, r, "certs/"+domain+"/cabundle.pem")
 
 /* =======================
    MAIN
@@ -242,6 +261,8 @@ func main() {
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/generate", basicAuth(generateHandler))
 	http.HandleFunc("/finalize", basicAuth(finalizeHandler))
+	http.HandleFunc("/download-bundle", basicAuth(downloadBundle))
+
 
 	fmt.Println("Server running on port", port)
 	http.ListenAndServe(":"+port, nil)
