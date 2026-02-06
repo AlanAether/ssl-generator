@@ -17,14 +17,14 @@ async function generate() {
 }
 
 async function finalize() {
+    const domain = document.getElementById("domain").value
+
     const res = await fetch("/finalize")
     const text = await res.text()
 
     document.getElementById("output").innerHTML =
         text +
-        "<br><br><a href='/download-cert?domain=" + document.getElementById("domain").value + "'>Download Certificate</a>" +
-        "<br><a href='/download-key?domain=" + document.getElementById("domain").value + "'>Download Private Key</a>" + 
+        "<br><br><a href='/download-cert?domain=" + domain + "'>Download Certificate</a>" +
+        "<br><a href='/download-key?domain=" + domain + "'>Download Private Key</a>" +
         "<br><a href='/download-bundle?domain=" + domain + "'>Download CA Bundle</a>"
-
 }
-
